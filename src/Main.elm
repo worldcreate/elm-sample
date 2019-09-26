@@ -28,6 +28,7 @@ init = {
 type Msg = 
     Input String
     | Save
+    | Delete Int
 
 update : Msg -> Model -> Model
 update msg model =
@@ -35,7 +36,12 @@ update msg model =
         Input newInput ->
             ({model | input = newInput })
         Save ->
-            ({model | todos = List.concat [model.todos, [model.input]], input = ""})
+            ({model | todos = model.input :: model.todos, input = ""})
+        Delete index ->
+            let
+                t = model.todos
+            in
+                ({model | todos = List.take index t ++ List.drop (index + 1) t})
 
 -- VIEW
 
@@ -44,7 +50,7 @@ view model =
     div [] [
         h1 [] [text "TODO!!"],
         div [] [
-            ul [] (List.map (\a -> li [] [text a]) model.todos)
+            ul [] (List.indexedMap (\i a -> div [] [li [] [text a], button [ onClick (Delete i) ] [text "delete"]]) model.todos)
         ],
         div [] [
             input [ onInput Input, value model.input ] [],
