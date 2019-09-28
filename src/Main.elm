@@ -1,14 +1,18 @@
-import Browser exposing (Document)
+import Browser exposing (Document, UrlRequest)
+import Browser.Navigation exposing (Key)
+import Url exposing (Url)
 import Html exposing (Html, button, div, text, h1, input, ul, li)
 import Html.Events exposing (onInput, onClick)
 import Html.Attributes exposing (value)
 
 main = 
-    Browser.document {
+    Browser.application {
         init = init,
         update = update,
         view = view,
-        subscriptions = subscriptions
+        subscriptions = subscriptions,
+        onUrlRequest = onUrlRequest,
+        onUrlChange = onUrlChange
     }
 
 -- MODEL
@@ -18,8 +22,8 @@ type alias Model = {
     todos: List String
     }
 
-init : () -> (Model, Cmd Msg)
-init flags = ({
+init : () -> Url -> Key -> (Model, Cmd Msg)
+init flags url key = ({
     input = "",
     todos = []
     }, Cmd.none)
@@ -30,6 +34,8 @@ type Msg =
     Input String
     | Save
     | Delete Int
+    | UrlRequest UrlRequest
+    | UrlChange Url
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
@@ -43,6 +49,10 @@ update msg model =
                 t = model.todos
             in
                 ({model | todos = List.take index t ++ List.drop (index + 1) t}, Cmd.none)
+        UrlRequest urlRequest ->
+            (model, Cmd.none)
+        UrlChange url ->
+            (model, Cmd.none)
 
 -- VIEW
 
@@ -64,3 +74,11 @@ view model = ({
 subscriptions: Model -> Sub Msg
 subscriptions model =
     Sub.none
+
+onUrlRequest: UrlRequest -> Msg
+onUrlRequest urlRequest =
+    UrlRequest urlRequest
+
+onUrlChange: Url -> Msg
+onUrlChange url =
+    UrlChange url
