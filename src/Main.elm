@@ -1,13 +1,14 @@
-import Browser
+import Browser exposing (Document)
 import Html exposing (Html, button, div, text, h1, input, ul, li)
 import Html.Events exposing (onInput, onClick)
 import Html.Attributes exposing (value)
 
 main = 
-    Browser.sandbox {
+    Browser.document {
         init = init,
         update = update,
-        view = view
+        view = view,
+        subscriptions = subscriptions
     }
 
 -- MODEL
@@ -17,11 +18,11 @@ type alias Model = {
     todos: List String
     }
 
-init : Model
-init = {
+init : () -> (Model, Cmd Msg)
+init flags = ({
     input = "",
     todos = []
-    }
+    }, Cmd.none)
 
 -- UPDATE
 
@@ -30,24 +31,25 @@ type Msg =
     | Save
     | Delete Int
 
-update : Msg -> Model -> Model
+update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
     case msg of
         Input newInput ->
-            ({model | input = newInput })
+            ({model | input = newInput }, Cmd.none)
         Save ->
-            ({model | todos = model.input :: model.todos, input = ""})
+            ({model | todos = model.input :: model.todos, input = ""}, Cmd.none)
         Delete index ->
             let
                 t = model.todos
             in
-                ({model | todos = List.take index t ++ List.drop (index + 1) t})
+                ({model | todos = List.take index t ++ List.drop (index + 1) t}, Cmd.none)
 
 -- VIEW
 
-view: Model -> Html Msg
-view model =
-    div [] [
+view: Model -> Document Msg
+view model = ({
+    title = "TODO!",
+    body = [div [] [
         h1 [] [text "TODO!!"],
         div [] [
             ul [] (List.indexedMap (\i a -> div [] [li [] [text a], button [ onClick (Delete i) ] [text "delete"]]) model.todos)
@@ -56,5 +58,9 @@ view model =
             input [ onInput Input, value model.input ] [],
             div [] [button [ onClick Save ] [text "save"]]
         ]
-    
-    ]
+    ]]
+    })
+
+subscriptions: Model -> Sub Msg
+subscriptions model =
+    Sub.none
