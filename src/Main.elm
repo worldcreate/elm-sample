@@ -75,18 +75,14 @@ update msg model =
             let
                 _ = Debug.log "urlChange url" url
             in
-                case model.page of
-                    Home homeModel ->
-                        (onUrlChange url model, (saveTodos homeModel.todos))
+                let
+                    nextModel = onUrlChange url model
+                in
+                case nextModel.page of
+                    Home _ ->
+                        (nextModel, fetchTodos ())
                     _ ->
-                        let
-                            nextModel = onUrlChange url model
-                        in
-                        case nextModel.page of
-                            Home _ ->
-                                (nextModel, fetchTodos ())
-                            _ ->
-                                (nextModel, Cmd.none)
+                        (nextModel, Cmd.none)
         GetTodos todos ->
             case model.page of
                 Home homeModel ->
@@ -100,7 +96,11 @@ update msg model =
                         Input newInput ->
                             ({model | page = Home {homeModel | input = newInput }}, Cmd.none)
                         Save ->
-                            ({model | page = Home {homeModel | todos = homeModel.input :: homeModel.todos, input = ""}}, Cmd.none)
+                            let
+                                newTodos = homeModel.input :: homeModel.todos
+                            in
+                            
+                            ({model | page = Home {homeModel | todos = newTodos, input = ""}}, saveTodos newTodos)
                         Delete index ->
                             let
                                 t = homeModel.todos
