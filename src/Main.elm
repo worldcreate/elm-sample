@@ -4,7 +4,9 @@ import Url exposing (Url)
 import Html exposing (Html, button, div, text, h1, input, ul, li, a)
 import Html.Events exposing (onInput, onClick)
 import Html.Attributes exposing (value, href)
+import Http
 import Url.Parser as Parser exposing ((</>), Parser, oneOf, s, string, fragment)
+import Json.Decode exposing (Decoder, field, string, int)
 
 import Ports exposing (saveTodos, fetchTodos, sendTodos)
 
@@ -46,7 +48,14 @@ init flags url key = ({
     key = Debug.log "init key" key,
     page = Home {input = "",
     todos = []
-    }}, Cmd.none)
+    }}, Http.get {
+        url = "https://api.github.com/users/octocat",
+        expect = Http.expectJson GotGithubStatus githubStatusDecoder
+    })
+
+githubStatusDecoder: Decoder Int
+githubStatusDecoder =
+    field "id" int
 
 -- UPDATE
 
@@ -57,6 +66,7 @@ type Msg =
     | UrlRequest UrlRequest
     | UrlChange Url
     | GetTodos (List String)
+    | GotGithubStatus (Result Http.Error Int)
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
@@ -88,6 +98,15 @@ update msg model =
                 Home homeModel ->
                     ({model | page = Home {homeModel | todos = todos }}, Cmd.none)
                 _ ->
+                    (model, Cmd.none)
+        GotGithubStatus result ->
+            case result of
+                Ok id ->
+                    let
+                        _ = Debug.log (String.fromInt id)
+                    in
+                    (model, Cmd.none)
+                Err _ ->
                     (model, Cmd.none)
         _ ->
             case model.page of
