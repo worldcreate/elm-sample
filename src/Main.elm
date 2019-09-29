@@ -1,9 +1,14 @@
 import Browser exposing (Document, UrlRequest)
-import Browser.Navigation exposing (Key)
+import Browser.Navigation exposing (Key, pushUrl, load)
 import Url exposing (Url)
-import Html exposing (Html, button, div, text, h1, input, ul, li)
+import Html exposing (Html, button, div, text, h1, input, ul, li, a)
 import Html.Events exposing (onInput, onClick)
-import Html.Attributes exposing (value)
+import Html.Attributes exposing (value, href)
+import Url.Parser as Parser exposing ((</>), Parser, oneOf, s, string, fragment)
+
+import Ports exposing (saveTodos, fetchTodos, sendTodos)
+
+
 
 main = 
     Browser.application {
@@ -11,22 +16,37 @@ main =
         update = update,
         view = view,
         subscriptions = subscriptions,
-        onUrlRequest = onUrlRequest,
-        onUrlChange = onUrlChange
+        onUrlRequest = UrlRequest,
+        onUrlChange = UrlChange
     }
 
 -- MODEL
 
-type alias Model = {
+type alias Model =
+    {
+        key: Key,
+        page: Page
+    }
+
+type Page =
+    Home HomeModel
+    | DetailPage DetailModel
+
+type alias HomeModel = {
     input: String,
     todos: List String
     }
 
+type alias DetailModel = {
+    todoName: String
+    }
+
 init : () -> Url -> Key -> (Model, Cmd Msg)
 init flags url key = ({
-    input = "",
+    key = Debug.log "init key" key,
+    page = Home {input = "",
     todos = []
-    }, Cmd.none)
+    }}, Cmd.none)
 
 -- UPDATE
 
@@ -36,49 +56,112 @@ type Msg =
     | Delete Int
     | UrlRequest UrlRequest
     | UrlChange Url
+    | GetTodos (List String)
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
+    let
+        _ = Debug.log "msg" msg
+    in
     case msg of
-        Input newInput ->
-            ({model | input = newInput }, Cmd.none)
-        Save ->
-            ({model | todos = model.input :: model.todos, input = ""}, Cmd.none)
-        Delete index ->
-            let
-                t = model.todos
-            in
-                ({model | todos = List.take index t ++ List.drop (index + 1) t}, Cmd.none)
         UrlRequest urlRequest ->
-            (model, Cmd.none)
+            case urlRequest of
+                Browser.Internal url ->
+                    (model, pushUrl model.key (Url.toString url))
+                        
+                Browser.External href ->
+                    (model, load href)
         UrlChange url ->
-            (model, Cmd.none)
+            let
+                _ = Debug.log "urlChange url" url
+            in
+                case model.page of
+                    Home homeModel ->
+                        (onUrlChange url model, (saveTodos homeModel.todos))
+                    _ ->
+                        let
+                            nextModel = onUrlChange url model
+                        in
+                        case nextModel.page of
+                            Home _ ->
+                                (nextModel, fetchTodos ())
+                            _ ->
+                                (nextModel, Cmd.none)
+        GetTodos todos ->
+            case model.page of
+                Home homeModel ->
+                    ({model | page = Home {homeModel | todos = todos }}, Cmd.none)
+                _ ->
+                    (model, Cmd.none)
+        _ ->
+            case model.page of
+                Home homeModel ->
+                    case msg of
+                        Input newInput ->
+                            ({model | page = Home {homeModel | input = newInput }}, Cmd.none)
+                        Save ->
+                            ({model | page = Home {homeModel | todos = homeModel.input :: homeModel.todos, input = ""}}, Cmd.none)
+                        Delete index ->
+                            let
+                                t = homeModel.todos
+                            in
+                                ({model | page = Home {homeModel | todos = List.take index t ++ List.drop (index + 1) t}}, Cmd.none)
+                        _ ->
+                            (model, Cmd.none)
+                DetailPage detail ->
+                    ({model | page = DetailPage detail}, Cmd.none)
 
 -- VIEW
 
 view: Model -> Document Msg
 view model = ({
     title = "TODO!",
-    body = [div [] [
-        h1 [] [text "TODO!!"],
-        div [] [
-            ul [] (List.indexedMap (\i a -> div [] [li [] [text a], button [ onClick (Delete i) ] [text "delete"]]) model.todos)
-        ],
-        div [] [
-            input [ onInput Input, value model.input ] [],
-            div [] [button [ onClick Save ] [text "save"]]
-        ]
-    ]]
+    body = 
+        case model.page of
+            Home homeModel ->
+                [div [] [
+                    h1 [] [text "TODO!!"],
+                    div [] [
+                        ul [] (
+                            List.indexedMap (\i todoName -> 
+                                div [] [
+                                    li [] [ a [ href ("#" ++ todoName) ] [ text todoName ] ],
+                                    button [ onClick (Delete i) ] [text "delete"]
+                                    ]) homeModel.todos)
+                    ],
+                    div [] [
+                        input [ onInput Input, value homeModel.input ] [],
+                        div [] [button [ onClick Save ] [text "save"]]
+                    ]
+                ]]
+            DetailPage detailModel ->
+                [div [][text detailModel.todoName]]
     })
 
 subscriptions: Model -> Sub Msg
 subscriptions model =
-    Sub.none
+    sendTodos GetTodos
 
-onUrlRequest: UrlRequest -> Msg
-onUrlRequest urlRequest =
-    UrlRequest urlRequest
+onUrlChange: Url -> Model -> Model
+onUrlChange url model =
+    let
+        maybeRoute = Parser.parse routeParser (Debug.log "onUrlChange url" url)
+    in
+    case maybeRoute of
+        Nothing ->
+            Debug.log "UrlChange Nothing" model
+        Just (Top (Nothing)) ->
+            Debug.log "UrlChange Just Nothing" {model | page = Home {
+                input = "",
+                todos = []
+            }}
+        Just (Top (Just todoName)) ->
+            Debug.log "UrlChange Just Detail" ({model | page = DetailPage {todoName = todoName}})
 
-onUrlChange: Url -> Msg
-onUrlChange url =
-    UrlChange url
+type Route
+    = Top (Maybe String)
+
+routeParser: Parser (Route -> a) a
+routeParser =
+    oneOf
+        [ Parser.map Top (fragment identity) ]
